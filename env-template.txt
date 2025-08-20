@@ -1,0 +1,13 @@
+# Copy this file to .env and update the values according to your setup
+
+# Database Configuration
+# Update these values according to your PostgreSQL setup
+DATABASE_URL="postgresql://username:password@localhost:5432/ecomrating?schema=public"
+
+# JWT Configuration
+# Change these secrets in production!
+JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
+NEXTAUTH_SECRET="your-nextauth-secret-change-this-in-production"
+
+# Environment
+NODE_ENV="development"
