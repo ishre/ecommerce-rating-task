@@ -3,15 +3,15 @@
 A full-stack web application that allows users to submit ratings for stores registered on the platform. Built with Next.js, TypeScript, and PostgreSQL.
 
 Sample Login Accounts:
-'''
+```
 Admin: admin@ecomrating.com / AdminPass123!
-'''
-'''
+```
+```
 Store Owner: storeowner@ecomrating.com / StorePass123!
-'''
-'''
+```
+```
 Normal User: user@ecomrating.com / UserPass123!
-'''
+```
 ## Features
 
 ### User Roles & Functionalities
