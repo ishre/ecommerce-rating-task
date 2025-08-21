@@ -8,14 +8,13 @@ import { StoreOwnerDashboard } from '@/components/StoreOwnerDashboard'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
+
 export default function DashboardPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    console.log('Dashboard: isLoading =', isLoading, 'user =', user)
     if (!isLoading && !user) {
-      console.log('No user found, redirecting to /auth')
       router.push('/auth')
     }
   }, [user, isLoading, router])
@@ -23,7 +22,10 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">Loading...</div>
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-slate-600 dark:text-slate-400">Loading...</p>
+        </div>
       </div>
     )
   }
@@ -43,7 +45,13 @@ export default function DashboardPage() {
     default:
       return (
         <div className="flex items-center justify-center min-h-screen">
-          <div className="text-xl text-red-600">Invalid user role</div>
+          <div className="text-center space-y-4">
+            <div className="text-6xl">⚠️</div>
+            <h1 className="text-2xl font-bold text-red-600">Invalid User Role</h1>
+            <p className="text-slate-600 dark:text-slate-400">
+              Your account has an invalid role. Please contact an administrator.
+            </p>
+          </div>
         </div>
       )
   }

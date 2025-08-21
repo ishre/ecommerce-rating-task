@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'name'
     const sortOrder = searchParams.get('sortOrder') || 'asc'
 
-    const where: any = {}
+    const where: Record<string, { contains: string; mode: 'insensitive' } | string> = {}
     if (name) {
       where.name = { contains: name, mode: 'insensitive' }
     }
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     if (!validateName(name)) {
       return NextResponse.json(
-        { error: 'Name must be between 20 and 60 characters' },
+        { error: 'Name must be between 2 and 60 characters' },
         { status: 400 }
       )
     }

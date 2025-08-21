@@ -45,7 +45,7 @@ export const validatePassword = (password: string): boolean => {
 }
 
 export const validateName = (name: string): boolean => {
-  return name.length >= 20 && name.length <= 60
+  return name.length >= 2 && name.length <= 60
 }
 
 export const validateAddress = (address: string): boolean => {

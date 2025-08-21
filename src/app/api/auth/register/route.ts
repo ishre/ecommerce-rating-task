@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     if (!validateName(name)) {
       return NextResponse.json(
-        { error: 'Name must be between 20 and 60 characters' },
+        { error: 'Name must be between 2 and 60 characters' },
         { status: 400 }
       )
     }

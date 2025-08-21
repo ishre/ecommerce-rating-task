@@ -18,6 +18,8 @@ Normal User: user@ecomrating.com / UserPass123!
 
 #### System Administrator
 - Add new stores, normal users, and admin users
+- Create users with any role (Normal User, Store Owner, System Admin)
+- Create stores and assign them to store owners
 - Dashboard with total counts (users, stores, ratings)
 - View and filter users and stores
 - User management with role-based access control

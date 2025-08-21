@@ -77,6 +77,34 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Compute top rated stores (by average rating, then by rating count)
+    const storesForRatings = await prisma.store.findMany({
+      select: {
+        id: true,
+        name: true,
+        ratings: { select: { rating: true } }
+      }
+    })
+
+    const topRatedStores = storesForRatings
+      .map((store) => {
+        const total = store.ratings.reduce((sum, r) => sum + r.rating, 0)
+        const count = store.ratings.length
+        const avg = count > 0 ? total / count : 0
+        return {
+          id: store.id,
+          name: store.name,
+          averageRating: Math.round(avg * 100) / 100,
+          totalRatings: count,
+        }
+      })
+      .filter((s) => s.totalRatings > 0)
+      .sort((a, b) => {
+        if (b.averageRating !== a.averageRating) return b.averageRating - a.averageRating
+        return b.totalRatings - a.totalRatings
+      })
+      .slice(0, 3)
+
     return NextResponse.json({
       stats: {
         totalUsers,
@@ -87,7 +115,8 @@ export async function GET(request: NextRequest) {
         users: recentUsers,
         stores: recentStores,
         ratings: recentRatings
-      }
+      },
+      topRatedStores
     })
   } catch (error) {
     console.error('Dashboard error:', error)

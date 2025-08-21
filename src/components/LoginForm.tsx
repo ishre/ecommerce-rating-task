@@ -1,7 +1,22 @@
 'use client'
 
 import React, { useState } from 'react'
+import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { 
+  Mail, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  LogIn,
+  AlertCircle
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface LoginFormProps {
   onSwitchToRegister: () => void
@@ -10,99 +25,214 @@ interface LoginFormProps {
 export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
   
   const { login } = useAuth()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setIsLoading(true)
+  const validateForm = () => {
+    const newErrors: { email?: string; password?: string } = {}
 
-    if (!email || !password) {
-      setError('Please fill in all fields')
-      setIsLoading(false)
-      return
+    if (!email) {
+      newErrors.email = 'Email is required'
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = 'Please enter a valid email'
     }
 
+    if (!password) {
+      newErrors.password = 'Password is required'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validateForm()) return
+
+    setIsLoading(true)
+    setErrors({})
+
     const result = await login(email, password)
+    
     if (result.success) {
       // Redirect to dashboard after successful login
       window.location.href = '/dashboard'
     } else {
-      setError(result.message)
+      setErrors({ password: result.message })
     }
+    
     setIsLoading(false)
   }
 
-  return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8 mb-4">
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
-          Sign In
-        </h2>
-        
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-        )}
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
+    if (errors.email) {
+      setErrors(prev => ({ ...prev, email: undefined }))
+    }
+  }
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
-              Email
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value)
+    if (errors.password) {
+      setErrors(prev => ({ ...prev, password: undefined }))
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="space-y-4"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium">
+            Email Address
+          </Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Input
               id="email"
               type="email"
               placeholder="Enter your email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+              onChange={handleEmailChange}
+              className={cn(
+                "pl-10",
+                errors.email && "border-red-500 focus:border-red-500"
+              )}
+              disabled={isLoading}
             />
           </div>
-          
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
-              Password
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline"
+          {errors.email && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center space-x-1 text-sm text-red-500"
+            >
+              <AlertCircle className="h-3 w-3" />
+              <span>{errors.email}</span>
+            </motion.div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-sm font-medium">
+            Password
+          </Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Input
               id="password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="Enter your password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
+              onChange={handlePasswordChange}
+              className={cn(
+                "pl-10 pr-10",
+                errors.password && "border-red-500 focus:border-red-500"
+              )}
+              disabled={isLoading}
             />
-          </div>
-          
-          <div className="flex items-center justify-between mb-6">
-            <button
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full disabled:opacity-50"
-              type="submit"
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+              onClick={() => setShowPassword(!showPassword)}
               disabled={isLoading}
             >
-              {isLoading ? 'Signing In...' : 'Sign In'}
-            </button>
+              {showPassword ? (
+                <EyeOff className="h-4 w-4 text-slate-400" />
+              ) : (
+                <Eye className="h-4 w-4 text-slate-400" />
+              )}
+            </Button>
           </div>
-        </form>
-        
-        <div className="text-center">
-          <p className="text-gray-600">
-            Don't have an account?{' '}
-            <button
-              onClick={onSwitchToRegister}
-              className="text-blue-500 hover:text-blue-700 font-semibold"
+          {errors.password && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center space-x-1 text-sm text-red-500"
             >
-              Sign up here
-            </button>
-          </p>
+              <AlertCircle className="h-3 w-3" />
+              <span>{errors.password}</span>
+            </motion.div>
+          )}
         </div>
+
+        <Button
+          type="submit"
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <div className="flex items-center space-x-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <span>Signing In...</span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <LogIn className="h-4 w-4" />
+              <span>Sign In</span>
+            </div>
+          )}
+        </Button>
+      </form>
+
+      <div className="text-center">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Don&apos;t have an account?{' '}
+          <Button
+            variant="link"
+            className="p-0 h-auto font-semibold text-blue-600 hover:text-blue-700"
+            onClick={onSwitchToRegister}
+          >
+            Sign up here
+          </Button>
+        </p>
       </div>
-    </div>
+
+      {/* Quick Login Demo */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 border-blue-200 dark:border-blue-800">
+        <CardContent >
+          <div className="flex items-center space-x-2 mb-2 text-center  justify-center">
+            
+            <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold">
+              Quick login for testing
+            </span>
+          </div>
+          <div className="space-y-2 text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs"
+              onClick={() => {
+                setEmail('admin@ecomrating.com')
+                setPassword('AdminPass123!')
+              }}
+            >
+              Admin Account
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs"
+              onClick={() => {
+                setEmail('user@ecomrating.com')
+                setPassword('UserPass123!')
+              }}
+            >
+              User Account
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   )
 }

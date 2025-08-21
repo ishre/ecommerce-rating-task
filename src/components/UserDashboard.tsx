@@ -1,7 +1,21 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Filter, Star, Building2, LogOut, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { toast } from 'sonner'
+import { TableSkeleton } from '@/components/ui/loading-skeleton'
+import { cn } from '@/lib/utils'
+import { ProfileDialog } from '@/components/ProfileDialog'
 
 interface Store {
   id: string
@@ -18,32 +32,44 @@ interface UserRating {
   rating: number | null
 }
 
+type SortField = 'name' | 'ownerName' | 'averageRating' | 'totalRatings'
+type SortDirection = 'asc' | 'desc'
+
 export const UserDashboard: React.FC = () => {
   const { user, logout } = useAuth()
-  const [stores, setStores] = useState<Store[]>([])
+  const [showProfile, setShowProfile] = useState(false)
+  const [allStores, setAllStores] = useState<Store[]>([])
   const [userRatings, setUserRatings] = useState<Record<string, UserRating>>({})
   const [filters, setFilters] = useState({
     name: '',
     address: ''
   })
+  const [sortField, setSortField] = useState<SortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [isLoading, setIsLoading] = useState(true)
   const [ratingStore, setRatingStore] = useState<string | null>(null)
   const [newRating, setNewRating] = useState(5)
 
+  // Debounced filter effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // This could trigger refetch if needed
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [filters])
+
   useEffect(() => {
     fetchStores()
-  }, [filters])
+  }, [])
 
   const fetchStores = async () => {
     try {
-      const params = new URLSearchParams()
-      if (filters.name) params.append('name', filters.name)
-      if (filters.address) params.append('address', filters.address)
-      
-      const response = await fetch(`/api/stores?${params}`)
+      setIsLoading(true)
+      const response = await fetch('/api/stores')
       if (response.ok) {
         const storesData = await response.json()
-        setStores(storesData)
+        setAllStores(storesData)
         
         // Fetch user ratings for each store
         const ratings: Record<string, UserRating> = {}
@@ -58,10 +84,73 @@ export const UserDashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to fetch stores:', error)
+      toast.error('Failed to fetch stores')
     } finally {
       setIsLoading(false)
     }
   }
+
+  // Client-side filtering and sorting
+  const filteredAndSortedStores = useMemo(() => {
+    const filtered = allStores.filter(store => {
+      const nameMatch = store.name.toLowerCase().includes(filters.name.toLowerCase())
+      const addressMatch = store.address.toLowerCase().includes(filters.address.toLowerCase())
+      
+      return nameMatch && addressMatch
+    })
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue = a[sortField] as string | number | null
+      let bValue = b[sortField] as string | number | null
+
+      // Handle null values for rating
+      if (sortField === 'averageRating') {
+        aValue = aValue ?? 0
+        bValue = bValue ?? 0
+      }
+
+      // Handle string sorting
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        aValue = aValue.toLowerCase()
+        bValue = bValue.toLowerCase()
+      }
+
+      let comparison = 0
+      if (aValue !== null && bValue !== null) {
+        if (aValue > bValue) comparison = 1
+        if (aValue < bValue) comparison = -1
+      } else if (aValue === null && bValue !== null) {
+        comparison = -1
+      } else if (aValue !== null && bValue === null) {
+        comparison = 1
+      }
+
+      return sortDirection === 'desc' ? -comparison : comparison
+    })
+
+    return filtered
+  }, [allStores, filters, sortField, sortDirection])
+
+  // Handle sorting
+  const handleSort = useCallback((field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }, [sortField])
+
+  // Get sort icon
+  const getSortIcon = useCallback((field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4" />
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4" />
+      : <ArrowDown className="h-4 w-4" />
+  }, [sortField, sortDirection])
 
   const handleSubmitRating = async (storeId: string) => {
     try {
@@ -77,6 +166,7 @@ export const UserDashboard: React.FC = () => {
       })
 
       if (response.ok) {
+        toast.success('Rating submitted successfully!')
         // Update local state
         setUserRatings(prev => ({
           ...prev,
@@ -87,9 +177,12 @@ export const UserDashboard: React.FC = () => {
         fetchStores()
         setRatingStore(null)
         setNewRating(5)
+      } else {
+        toast.error('Failed to submit rating')
       }
     } catch (error) {
       console.error('Failed to submit rating:', error)
+      toast.error('Failed to submit rating')
     }
   }
 
@@ -98,135 +191,298 @@ export const UserDashboard: React.FC = () => {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl">Loading...</div>
-      </div>
-    )
+    return <TableSkeleton />
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-white/20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <h1 className="text-3xl font-bold text-gray-900">Store Ratings</h1>
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
+                <Star className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">
+                  Store Ratings
+                </h1>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Rate and review stores on the platform
+                </p>
+              </div>
+            </div>
             <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Welcome, {user?.name}</span>
-              <button
+              <div className="flex items-center space-x-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+                    {user?.name?.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                    {user?.name}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {user?.role}
+                  </p>
+                </div>
+              </div>
+              <Button
                 onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+                variant="outline"
+                size="sm"
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
               >
+                <LogOut className="h-4 w-4 mr-2" />
                 Logout
-              </button>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowProfile(true)}>Profile</Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Search Filters */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <input
-              type="text"
-              placeholder="Search stores by name"
-              className="border border-gray-300 rounded-md px-3 py-2"
-              value={filters.name}
-              onChange={(e) => setFilters(prev => ({ ...prev, name: e.target.value }))}
-            />
-            <input
-              type="text"
-              placeholder="Search stores by address"
-              className="border border-gray-300 rounded-md px-3 py-2"
-              value={filters.address}
-              onChange={(e) => setFilters(prev => ({ ...prev, address: e.target.value }))}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Stores List */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="grid grid-cols-1 gap-6">
-            {stores.map((store) => (
-              <div key={store.id} className="bg-white shadow rounded-lg p-6">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">{store.name}</h3>
-                    <p className="text-gray-600 mb-2">{store.address}</p>
-                    <p className="text-sm text-gray-500 mb-2">Owner: {store.ownerName}</p>
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center">
-                        <span className="text-sm text-gray-500 mr-2">Average Rating:</span>
-                        <div className="flex items-center">
-                          <span className="text-lg font-semibold text-yellow-600">
-                            {store.averageRating !== null && store.averageRating !== undefined ? store.averageRating.toFixed(2) : 'N/A'}
-                          </span>
-                          <span className="text-sm text-gray-500 ml-1">
-                            ({store.totalRatings} ratings)
-                          </span>
-                        </div>
-                      </div>
-                      {userRatings[store.id]?.rating && (
-                        <div className="flex items-center">
-                          <span className="text-sm text-gray-500 mr-2">Your Rating:</span>
-                          <span className="text-lg font-semibold text-blue-600">
-                            {userRatings[store.id].rating}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-col items-end space-y-2">
-                    {ratingStore === store.id ? (
-                      <div className="flex items-center space-x-2">
-                        <select
-                          value={newRating}
-                          onChange={(e) => setNewRating(Number(e.target.value))}
-                          className="border border-gray-300 rounded px-2 py-1"
-                        >
-                          {[1, 2, 3, 4, 5].map(rating => (
-                            <option key={rating} value={rating}>{rating}</option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => handleSubmitRating(store.id)}
-                          className="bg-green-500 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
-                        >
-                          Submit
-                        </button>
-                        <button
-                          onClick={() => setRatingStore(null)}
-                          className="bg-gray-500 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setRatingStore(store.id)}
-                        className="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm"
-                      >
-                        {userRatings[store.id]?.rating ? 'Update Rating' : 'Rate Store'}
-                      </button>
-                    )}
-                  </div>
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
+        >
+          {/* Search Filters */}
+          <Card className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-white/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <Filter className="h-4 w-4" />
+                  <span>Search & Filter</span>
+                </CardTitle>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setFilters({ name: '', address: '' })}
+                  className="text-slate-500 hover:text-slate-700"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="store-name-search">Store Name</Label>
+                  <Input
+                    id="store-name-search"
+                    placeholder="Search stores by name"
+                    value={filters.name}
+                    onChange={(e) => setFilters(prev => ({ ...prev, name: e.target.value }))}
+                    className="bg-white/50 dark:bg-slate-700/50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="store-address-search">Address</Label>
+                  <Input
+                    id="store-address-search"
+                    placeholder="Search stores by address"
+                    value={filters.address}
+                    onChange={(e) => setFilters(prev => ({ ...prev, address: e.target.value }))}
+                    className="bg-white/50 dark:bg-slate-700/50"
+                  />
                 </div>
               </div>
-            ))}
-            
-            {stores.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">No stores found matching your criteria.</p>
+            </CardContent>
+          </Card>
+
+          {/* Stores Table */}
+          <Card className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-white/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Available Stores</CardTitle>
+                  <CardDescription>
+                    {filteredAndSortedStores.length} stores found
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchStores}
+                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
               </div>
-            )}
-          </div>
-        </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border border-white/20">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50/50 dark:bg-slate-700/50">
+                      <TableHead 
+                        className="cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-600/50 select-none"
+                        onClick={() => handleSort('name')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Store</span>
+                          {getSortIcon('name')}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-600/50 select-none"
+                        onClick={() => handleSort('ownerName')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Owner</span>
+                          {getSortIcon('ownerName')}
+                        </div>
+                      </TableHead>
+                      <TableHead>Address</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-600/50 select-none"
+                        onClick={() => handleSort('averageRating')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Rating</span>
+                          {getSortIcon('averageRating')}
+                        </div>
+                      </TableHead>
+                      <TableHead>Your Rating</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAndSortedStores.map((store) => (
+                      <TableRow key={store.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50">
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <div className="p-2 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg">
+                              <Building2 className="h-4 w-4 text-white" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-slate-900 dark:text-slate-100">
+                                {store.name}
+                              </div>
+                              <div className="text-sm text-slate-500 dark:text-slate-400">
+                                {store.email}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs">
+                                {store.ownerName.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                {store.ownerName}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          <div className="truncate text-sm text-slate-600 dark:text-slate-400">
+                            {store.address}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-1">
+                            <Star className="h-4 w-4 text-yellow-500" />
+                            <span className={cn("font-medium", store.averageRating && store.averageRating >= 4 ? "text-green-600" : store.averageRating && store.averageRating >= 3 ? "text-yellow-600" : "text-red-600")}>
+                              {store.averageRating !== null && store.averageRating !== undefined 
+                                ? store.averageRating.toFixed(2) 
+                                : 'N/A'
+                              }
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              ({store.totalRatings})
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {userRatings[store.id]?.rating ? (
+                            <Badge variant="secondary" className="text-sm">
+                              {userRatings[store.id].rating}/5
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-slate-400">Not rated</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {ratingStore === store.id ? (
+                            <div className="flex items-center space-x-2">
+                              <Select
+                                value={newRating.toString()}
+                                onValueChange={(value) => setNewRating(Number(value))}
+                              >
+                                <SelectTrigger className="w-20">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[1, 2, 3, 4, 5].map(rating => (
+                                    <SelectItem key={rating} value={rating.toString()}>
+                                      {rating}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                onClick={() => handleSubmitRating(store.id)}
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                Submit
+                              </Button>
+                              <Button
+                                onClick={() => setRatingStore(null)}
+                                variant="outline"
+                                size="sm"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              onClick={() => setRatingStore(store.id)}
+                              variant="outline"
+                              size="sm"
+                              className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                            >
+                              {userRatings[store.id]?.rating ? 'Update Rating' : 'Rate Store'}
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {filteredAndSortedStores.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-slate-500 text-lg">No stores found matching your criteria.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </main>
+      <ProfileDialog open={showProfile} onOpenChange={setShowProfile} />
     </div>
+  )
+}
+
+// Profile dialog mount
+export default function UserDashboardWithProfile() {
+  return (
+    <>
+      <UserDashboard />
+      <ProfileDialog open={false} onOpenChange={() => {}} />
+    </>
   )
 }

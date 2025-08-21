@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'name'
     const sortOrder = searchParams.get('sortOrder') || 'asc'
 
-    const where: any = {}
+    const where: Record<string, { contains: string; mode: 'insensitive' }> = {}
     if (name) {
       where.name = { contains: name, mode: 'insensitive' }
     }
